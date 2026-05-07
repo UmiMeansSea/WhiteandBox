@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import courseRoutes from './routes/courses.js';
 import userRoutes from './routes/users.js';
 import authRoutes from './routes/auth.js';
@@ -12,6 +13,8 @@ import sessionRoutes from './routes/sessions.js';
 import learningRoutes from './routes/learning.js';
 
 dotenv.config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -21,7 +24,7 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
 
 // Middleware
 app.use(cors({
-  origin: CLIENT_URL,
+  origin: CLIENT_URL === '*' ? true : CLIENT_URL,
   credentials: true,
 }));
 app.use(express.json());
@@ -40,6 +43,18 @@ app.use('/api/learning', learningRoutes);
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'EduPro API is running' });
 });
+
+// ── Serve built React client (used when sharing via ngrok) ────────────────────
+const clientBuild = path.join(__dirname, '../client/dist');
+if (fs.existsSync(clientBuild)) {
+  app.use(express.static(clientBuild));
+  // Catch-all: let React Router handle client-side navigation (Express 5 syntax)
+  app.get('/{*path}', (req, res) => {
+    res.sendFile(path.join(clientBuild, 'index.html'));
+  });
+  console.log('📦 Serving built React client from /client/dist');
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Connect to MongoDB and start server
 mongoose.connect(MONGO_URI)
