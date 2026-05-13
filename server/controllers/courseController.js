@@ -1,5 +1,6 @@
 import Course from '../models/Course.js';
 import { uploadFromBuffer } from '../config/cloudinary.js';
+import redisClient from '../config/redis.js';
 
 /**
  * @desc    Upload new course with thumbnail, video, and PDF
@@ -49,6 +50,13 @@ export const uploadCourse = async (req, res, next) => {
 
     await newCourse.save();
 
+    // Invalidate Cache
+    try {
+      await redisClient.del('courses:all');
+    } catch (err) {
+      console.error('Redis Del Error:', err.message);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Course uploaded successfully',
@@ -67,9 +75,38 @@ export const uploadCourse = async (req, res, next) => {
  */
 export const getCourses = async (req, res, next) => {
   try {
-    // Fast-Show: Use .lean() to get raw JS objects
+    const cacheKey = 'courses:all';
+    
+    // Check Redis Cache
+    let cachedCourses = null;
+    try {
+      cachedCourses = await redisClient.get(cacheKey);
+    } catch (err) {
+      console.error('Redis Get Error:', err.message);
+    }
+
+    if (cachedCourses) {
+      return res.status(200).json({
+        success: true,
+        count: JSON.parse(cachedCourses).length,
+        courses: JSON.parse(cachedCourses),
+        source: 'cache'
+      });
+    }
+
+    // Cache Miss: Fetch from MongoDB
     const courses = await Course.find().lean();
-    res.status(200).json({ success: true, count: courses.length, courses });
+    
+    // Save to Redis (TTL: 15 mins)
+    try {
+      await redisClient.set(cacheKey, JSON.stringify(courses), {
+        EX: 900
+      });
+    } catch (err) {
+      console.error('Redis Set Error:', err.message);
+    }
+
+    res.status(200).json({ success: true, count: courses.length, courses, source: 'database' });
   } catch (error) {
     next(error);
   }

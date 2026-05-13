@@ -23,6 +23,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^9.6.1",
     "multer": "^2.0.2",
+    "redis": "^5.12.1",
     "streamifier": "^0.1.1"
   }
 }

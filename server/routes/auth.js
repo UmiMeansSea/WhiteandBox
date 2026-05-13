@@ -8,23 +8,6 @@ const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const isProd = process.env.NODE_ENV === 'production';
-const DEMO_USERS = [
-  {
-    id: 'demo-admin',
-    name: 'Demo Admin',
-    email: 'admin@edupro.demo',
-    password: 'Admin@123',
-    role: 'admin',
-  },
-  {
-    id: 'demo-student',
-    name: 'Demo Student',
-    email: 'student@edupro.demo',
-    password: 'Student@123',
-    role: 'student',
-  },
-];
-
 function getCookieOptions() {
   return {
     httpOnly: true,
@@ -89,30 +72,6 @@ router.post('/login', async (req, res) => {
     }
 
     const normalizedEmail = String(email).toLowerCase().trim();
-    const demoUser = DEMO_USERS.find((u) => u.email === normalizedEmail);
-    if (demoUser && demoUser.password === password) {
-      const token = jwt.sign(
-        {
-          id: demoUser.id,
-          email: demoUser.email,
-          role: demoUser.role,
-          name: demoUser.name,
-        },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-      );
-      res.cookie('token', token, getCookieOptions());
-      return res.json({
-        user: {
-          id: demoUser.id,
-          name: demoUser.name,
-          email: demoUser.email,
-          role: demoUser.role,
-          avatar: null,
-        },
-      });
-    }
-
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
@@ -143,18 +102,6 @@ router.post('/logout', (req, res) => {
 
 router.get('/me', requireAuth, async (req, res) => {
   try {
-    if (String(req.user.id).startsWith('demo-')) {
-      return res.json({
-        user: {
-          id: req.user.id,
-          name: req.user.name,
-          email: req.user.email,
-          role: req.user.role,
-          avatar: null,
-        },
-      });
-    }
-
     const user = await User.findById(req.user.id).select('-passwordHash');
     if (!user) return res.status(404).json({ message: 'User not found' });
     return res.json({ user: sanitizeUser(user) });

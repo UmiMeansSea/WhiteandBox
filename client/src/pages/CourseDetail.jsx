@@ -347,7 +347,11 @@ export default function CourseDetail() {
           <div className="w-full lg:w-[360px] flex-shrink-0">
             <div className="lg:sticky lg:top-[100px] border border-black overflow-hidden">
               <div className="aspect-video overflow-hidden">
-                <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
+                <img 
+                  src={typeof course.thumbnail === 'object' ? course.thumbnail?.secure_url : course.thumbnail} 
+                  alt={course.title} 
+                  className="w-full h-full object-cover" 
+                />
               </div>
               <div className="p-8">
                 <div className="mb-6">
@@ -381,7 +385,7 @@ export default function CourseDetail() {
                   <ul className="flex flex-col gap-3">
                     {[
                       ['play_circle', `${course.totalHours}h on-demand video`],
-                      ['article', '12 downloadable resources'],       // PLACEHOLDER count
+                      ['article', course.pdf?.secure_url ? '1 downloadable resource' : 'Course materials'],
                       ['all_inclusive', 'Full lifetime access'],
                       ['workspace_premium', 'Certificate of completion'],
                     ].map(([icon, text]) => (

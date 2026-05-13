@@ -14,10 +14,10 @@ export default function Publish() {
   const [submitted, setSubmitted] = useState(false)
 
   const [form, setForm] = useState({
-    title: 'Mastering Minimalist Spatial Design',
-    subtitle: 'A comprehensive guide to creating high-end architectural experiences through restraint and precision.',
-    category: 'Interior Architecture & Design',
-    price: 149,
+    title: '',
+    subtitle: '',
+    category: '',
+    price: 0,
     description: '',
   })
 

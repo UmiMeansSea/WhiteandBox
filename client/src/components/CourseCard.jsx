@@ -24,7 +24,10 @@ export default function CourseCard({
       <div className="aspect-[16/10] overflow-hidden">
         <img
           className="course-thumb w-full h-full object-cover"
-          src={optimizeImageUrl(thumbnail || 'https://images.unsplash.com/photo-1487958449943-2429e8be8625?w=600&q=80')}
+          src={optimizeImageUrl(
+            (typeof thumbnail === 'object' ? thumbnail?.secure_url : thumbnail) || 
+            'https://images.unsplash.com/photo-1487958449943-2429e8be8625?w=600&q=80'
+          )}
           alt={title}
           loading="lazy"
           decoding="async"
