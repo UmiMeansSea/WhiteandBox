@@ -8,7 +8,8 @@ import { uploadFromBuffer } from '../config/cloudinary.js';
  */
 export const uploadCourse = async (req, res, next) => {
   try {
-    const { title, category, description, adminId } = req.body;
+    const { title, subtitle, category, description, price } = req.body;
+    const adminId = req.user.id;
     
     if (!req.files || !req.files['thumbnail'] || !req.files['video'] || !req.files['pdf']) {
       return res.status(400).json({ success: false, message: 'Please provide thumbnail, video, and pdf files.' });
@@ -27,8 +28,10 @@ export const uploadCourse = async (req, res, next) => {
 
     const newCourse = new Course({
       title,
+      subtitle,
       category,
       description,
+      price,
       adminId,
       thumbnail: {
         secure_url: thumbnailResult.secure_url,

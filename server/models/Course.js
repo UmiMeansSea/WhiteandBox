@@ -11,8 +11,15 @@ const courseSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
+  subtitle: {
+    type: String,
+  },
   description: {
     type: String,
+  },
+  price: {
+    type: Number,
+    default: 0,
   },
   thumbnail: {
     secure_url: String,
@@ -26,9 +33,8 @@ const courseSchema = new mongoose.Schema({
     secure_url: String,
     public_id: String,
   },
-  adminId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Admin',
+    adminId: {
+    type: String, // String to support demo IDs
   }
 }, { timestamps: true });
 

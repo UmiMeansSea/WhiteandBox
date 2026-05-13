@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
-// PLACEHOLDER: removed api import — add back when backend is ready
+import api from '../lib/api'
 import { useAuth } from '../context/useAuth'
 
 const STEPS = ['BASICS', 'CONTENT', 'PRICING', 'PUBLISH']
@@ -21,18 +21,41 @@ export default function Publish() {
     description: '',
   })
 
+  const [files, setFiles] = useState({
+    thumbnail: null,
+    video: null,
+    pdf: null,
+  })
+
   function handleChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
   }
 
-  // PLACEHOLDER: Simulates course submission —
-  // Replace with: await api.post('/api/courses', { ...form, ... }) when backend is ready
+  function handleFileChange(e) {
+    setFiles(prev => ({ ...prev, [e.target.name]: e.target.files[0] }))
+  }
+
   async function handleSubmit() {
     setSubmitting(true)
-    await new Promise(r => setTimeout(r, 800)) // simulate network delay
-    setSubmitted(true)
-    setTimeout(() => navigate('/dashboard'), 2000)
-    setSubmitting(false)
+    try {
+      const formData = new FormData()
+      Object.keys(form).forEach(key => formData.append(key, form[key]))
+      if (files.thumbnail) formData.append('thumbnail', files.thumbnail)
+      if (files.video) formData.append('video', files.video)
+      if (files.pdf) formData.append('pdf', files.pdf)
+
+      await api.post('/api/admin/upload-course', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+
+      setSubmitted(true)
+      setTimeout(() => navigate('/dashboard'), 2000)
+    } catch (error) {
+      console.error('Upload failed:', error)
+      alert(error.response?.data?.message || 'Upload failed')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -164,20 +187,19 @@ export default function Publish() {
                 <h2 className="text-[32px] font-bold">02 Content</h2>
                 <button className="text-[14px] font-bold border-b border-black hover:text-[#4d6705] transition-all">EDIT</button>
               </div>
-              <div className="flex flex-col gap-4">
-                {[
-                  { n: '01', title: 'The Philosophy of Less', meta: 'Video • 12:40' },
-                  { n: '02', title: 'Material Selection & Textures', meta: 'Video • 18:15' },
-                  { n: '03', title: 'Case Study: The Glass Pavilion', meta: 'Document • PDF' },
-                ].map(item => (
-                  <div key={item.n} className="p-4 border border-[#cfc4c5] flex justify-between items-center bg-white">
-                    <div className="flex items-center gap-4">
-                      <span className="text-[14px] font-bold text-[#4c4546]">{item.n}</span>
-                      <span className="text-[16px] font-medium">{item.title}</span>
-                    </div>
-                    <span className="text-[12px] text-[#4c4546] uppercase font-bold">{item.meta}</span>
-                  </div>
-                ))}
+              <div className="flex flex-col gap-6 mt-4">
+                <div className="p-6 border border-black bg-white">
+                  <label className="block text-[12px] font-bold uppercase tracking-tight text-[#4c4546] mb-3">Course Thumbnail (Image)</label>
+                  <input type="file" name="thumbnail" accept="image/*" onChange={handleFileChange} className="text-[14px] file:mr-4 file:py-2 file:px-4 file:border-0 file:text-[12px] file:font-bold file:uppercase file:bg-black file:text-white hover:file:bg-[#4c4546] transition-all cursor-pointer" />
+                </div>
+                <div className="p-6 border border-black bg-white">
+                  <label className="block text-[12px] font-bold uppercase tracking-tight text-[#4c4546] mb-3">Main Lesson Video</label>
+                  <input type="file" name="video" accept="video/*" onChange={handleFileChange} className="text-[14px] file:mr-4 file:py-2 file:px-4 file:border-0 file:text-[12px] file:font-bold file:uppercase file:bg-black file:text-white hover:file:bg-[#4c4546] transition-all cursor-pointer" />
+                </div>
+                <div className="p-6 border border-black bg-white">
+                  <label className="block text-[12px] font-bold uppercase tracking-tight text-[#4c4546] mb-3">Supplementary Materials (PDF)</label>
+                  <input type="file" name="pdf" accept=".pdf" onChange={handleFileChange} className="text-[14px] file:mr-4 file:py-2 file:px-4 file:border-0 file:text-[12px] file:font-bold file:uppercase file:bg-black file:text-white hover:file:bg-[#4c4546] transition-all cursor-pointer" />
+                </div>
               </div>
             </div>
 
