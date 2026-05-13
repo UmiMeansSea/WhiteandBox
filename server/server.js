@@ -6,6 +6,8 @@ import cookieParser from 'cookie-parser';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { deleteCourse } from './controllers/courseController.js';
+import { requireAdmin } from './middleware/auth.js';
 import courseRoutes from './routes/courses.js';
 import userRoutes from './routes/users.js';
 import authRoutes from './routes/auth.js';
@@ -36,6 +38,12 @@ app.use(cookieParser());
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 app.use('/uploads', express.static(UPLOAD_DIR));
 
+// Debug Middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
 // Session Setup
 app.use(session({
   secret: process.env.SESSION_SECRET || 'secret123',
@@ -59,6 +67,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/learning', learningRoutes);
 app.use('/api/admin', adminRoutes);
+
+// Emergency direct route
+app.delete('/api/admin/courses/:id', requireAdmin, deleteCourse);
 
 // Health check
 app.get('/api/health', (req, res) => {

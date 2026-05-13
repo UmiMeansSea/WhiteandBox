@@ -59,20 +59,14 @@ export default function AdminShell({ children }) {
           </NavLink>
 
           <NavLink to="/admin/courses" className={navLinkClass}>
-            <span className="material-symbols-outlined text-[20px]">upload</span>
-            Upload / Teach
+            <span className="material-symbols-outlined text-[20px]">settings_suggest</span>
+            Management
           </NavLink>
 
-          <a
-            href={myCoursesTo}
-            className={cn(
-              'flex items-center gap-3 px-4 py-3 text-[14px] rounded-none transition-all',
-              isAdminHome ? 'text-[#4c4546] hover:bg-[#e8e8e8] font-semibold' : 'text-[#4c4546] hover:bg-[#e8e8e8] font-semibold'
-            )}
-          >
+          <NavLink to="/courses" className={navLinkClass}>
             <span className="material-symbols-outlined text-[20px]">menu_book</span>
-            My Courses
-          </a>
+            All Courses
+          </NavLink>
         </nav>
 
         {/* Bottom CTA */}

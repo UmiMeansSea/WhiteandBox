@@ -3,8 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import api from '../lib/api'
-
-const EMBED_PLACEHOLDER_URL = 'https://www.youtube.com/embed/q86g1aop6a8?autoplay=1'
+import { useAuth } from '../context/useAuth'
 
 function toInt(value, fallback = 0) {
   const n = Number(value)
@@ -13,6 +12,7 @@ function toInt(value, fallback = 0) {
 
 export default function CoursePlayer() {
   const { id } = useParams()
+  const { user, isAuthenticated } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
@@ -35,6 +35,47 @@ export default function CoursePlayer() {
     })()
     return () => { cancelled = true }
   }, [id])
+
+  // Session & Progress tracking — Bypass for Admins
+  useEffect(() => {
+    if (!isAuthenticated) return
+    if (!course?._id) return
+    if (user?.role === 'admin') return // BYPASS TRACKING FOR ADMINS
+
+    let stopped = false
+    let last = Date.now()
+
+    const tick = async (action = 'heartbeat') => {
+      if (stopped) return
+      const now = Date.now()
+      const durationMs = Math.max(0, now - last)
+      last = now
+      try {
+        await api.post('/api/sessions/track', {
+          courseId: course._id,
+          courseTitle: course.title,
+          durationMs,
+          action,
+        })
+        await api.post('/api/learning/progress', {
+          courseId: course._id,
+          courseTitle: course.title,
+          durationMs,
+          lectureId: activeRow?.lecture?._id,
+          lectureTitle: activeRow?.lecture?.title
+        })
+      } catch (err) {
+        // ignore tracking errors
+      }
+    }
+
+    const interval = setInterval(() => tick(), 15000)
+    return () => {
+      stopped = true
+      clearInterval(interval)
+      tick('end').catch(() => {})
+    }
+  }, [course?._id, course?.title, isAuthenticated, user?.role, activeSection, activeLecture])
 
   const curriculumRows = []
   ;(course?.curriculum || []).forEach((section, si) => {
@@ -72,6 +113,8 @@ export default function CoursePlayer() {
     )
   }
 
+  const currentVideoUrl = activeRow?.lecture?.url || ''
+
   return (
     <div style={{ fontFamily: "'Space Grotesk', sans-serif" }} className="bg-[#f9f9f9] text-[#1a1c1c]">
       <Navbar />
@@ -79,18 +122,43 @@ export default function CoursePlayer() {
         <div className="flex flex-col lg:flex-row">
           <section className="w-full lg:w-3/4 bg-black relative">
             <div className="relative aspect-video overflow-hidden border-b border-[#cfc4c5]">
-              <iframe
-                title="Course lesson player"
-                src={EMBED_PLACEHOLDER_URL}
-                className="w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
+              {activeRow?.lecture?.type === 'video' ? (
+                currentVideoUrl.includes('youtube.com') || currentVideoUrl.includes('youtu.be') ? (
+                  <iframe
+                    title="Course lesson player"
+                    src={currentVideoUrl.replace('watch?v=', 'embed/')}
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video 
+                    src={currentVideoUrl} 
+                    controls 
+                    className="w-full h-full"
+                    poster={typeof course.thumbnail === 'object' ? course.thumbnail.secure_url : course.thumbnail}
+                  />
+                )
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-[#1a1c1c] text-white p-12 text-center">
+                  <span className="material-symbols-outlined text-[64px] mb-4 text-[#ceef83]">description</span>
+                  <h2 className="text-[24px] font-bold mb-2">Reading Material</h2>
+                  <p className="text-white/60 mb-8">This lecture contains documents or assignments.</p>
+                  <a href={activeRow?.lecture?.url} target="_blank" rel="noreferrer" className="px-8 py-3 bg-[#ceef83] text-black font-bold uppercase text-[12px] tracking-widest">
+                    View Document
+                  </a>
+                </div>
+              )}
             </div>
 
             <div className="bg-[#f9f9f9] p-8 md:p-16">
               <div className="max-w-4xl">
-                <span className="text-[14px] font-bold uppercase tracking-widest text-[#4d6705] mb-4 block">Current Lesson</span>
+                <div className="flex items-center justify-between mb-4">
+                   <span className="text-[14px] font-bold uppercase tracking-widest text-[#4d6705]">Current Lesson</span>
+                   {user?.role === 'admin' && (
+                     <span className="px-3 py-1 bg-black text-[#ceef83] text-[10px] font-bold uppercase tracking-widest">Admin Preview (Tracking Disabled)</span>
+                   )}
+                </div>
                 <h1 className="text-[40px] font-semibold tracking-tight text-black mb-6">
                   {activeRow?.lecture?.title || course.title}
                 </h1>
@@ -101,26 +169,20 @@ export default function CoursePlayer() {
                 <div className="border-t border-black pt-10">
                   <h3 className="text-[14px] font-bold uppercase tracking-widest mb-6">Course Materials</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center justify-between p-5 border border-[#cfc4c5] bg-white">
-                      <div className="flex items-center gap-3">
-                        <span className="material-symbols-outlined">description</span>
-                        <div>
-                          <p className="font-bold text-[14px]">Lecture Notes.pdf</p>
-                          <p className="text-[12px] text-[#4c4546]">Placeholder material</p>
+                    {course.pdf?.secure_url ? (
+                      <a href={course.pdf.secure_url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-5 border border-[#cfc4c5] bg-white hover:border-black transition-all">
+                        <div className="flex items-center gap-3">
+                          <span className="material-symbols-outlined">description</span>
+                          <div>
+                            <p className="font-bold text-[14px]">Course Guide.pdf</p>
+                            <p className="text-[12px] text-[#4c4546]">Primary materials</p>
+                          </div>
                         </div>
-                      </div>
-                      <span className="material-symbols-outlined text-[#4c4546]">download</span>
-                    </div>
-                    <div className="flex items-center justify-between p-5 border border-[#cfc4c5] bg-white">
-                      <div className="flex items-center gap-3">
-                        <span className="material-symbols-outlined">folder_zip</span>
-                        <div>
-                          <p className="font-bold text-[14px]">Project Files.zip</p>
-                          <p className="text-[12px] text-[#4c4546]">Placeholder material</p>
-                        </div>
-                      </div>
-                      <span className="material-symbols-outlined text-[#4c4546]">download</span>
-                    </div>
+                        <span className="material-symbols-outlined text-[#4c4546]">download</span>
+                      </a>
+                    ) : (
+                      <p className="text-[14px] text-[#4c4546]">No additional materials provided.</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -129,7 +191,7 @@ export default function CoursePlayer() {
 
           <aside className="w-full lg:w-1/4 bg-[#f3f3f4] border-l border-[#cfc4c5] flex flex-col lg:h-[calc(100vh-80px)] lg:sticky lg:top-[80px]">
             <div className="p-8 border-b border-[#cfc4c5]">
-              <h2 className="text-[14px] font-bold uppercase tracking-widest text-[#4c4546] mb-2">Up Next</h2>
+              <h2 className="text-[14px] font-bold uppercase tracking-widest text-[#4c4546] mb-2">Curriculum</h2>
               <p className="text-[24px] font-semibold leading-tight text-black">{course.title}</p>
             </div>
 
@@ -174,4 +236,3 @@ export default function CoursePlayer() {
     </div>
   )
 }
-

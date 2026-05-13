@@ -11,6 +11,7 @@ function Icon({ name, className = '' }) {
 function normalizeCourse(c) {
   return {
     ...c,
+    thumbnail: typeof c?.thumbnail === 'object' ? c.thumbnail?.secure_url : c.thumbnail,
     curriculum: Array.isArray(c?.curriculum) ? c.curriculum : [],
     updatedAt: c?.updatedAt ? new Date(c.updatedAt) : null,
   }
@@ -65,7 +66,17 @@ export default function CourseManagement() {
 
   useEffect(() => {
     let cancelled = false
-    Promise.resolve().then(() => { if (!cancelled) fetchCourses() })
+    Promise.resolve().then(async () => { 
+      if (!cancelled) {
+        fetchCourses() 
+        try {
+          const test = await api.get('/api/admin/test')
+          console.log('🔗 Admin API Status:', test.data.message)
+        } catch (err) {
+          console.error('❌ Admin API unreachable:', err.response || err)
+        }
+      }
+    })
     return () => { cancelled = true }
   }, [])
 
@@ -116,7 +127,7 @@ export default function CourseManagement() {
         const up = await api.post(`/api/courses/${created._id}/assets`, fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         })
-        created.thumbnail = up.data?.course?.thumbnail || created.thumbnail
+        created.thumbnail = up.data?.course?.thumbnail?.secure_url || up.data?.course?.thumbnail || created.thumbnail
       }
 
       // initial video
@@ -238,6 +249,41 @@ export default function CourseManagement() {
       setNewLecture((l) => ({ ...l, title: '', duration: '', url: '', file: null }))
     } catch (e) {
       setEditError(e?.response?.data?.message || 'Failed to add lecture/material.')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  async function deleteCourse(id) {
+    if (!id) {
+      alert('Cannot delete: Course ID is missing.')
+      return
+    }
+    if (!window.confirm('Are you absolutely sure? This will delete the entire course and all its assets.')) return
+    
+    console.log('🗑️ Attempting to delete course with ID:', id, 'Type:', typeof id)
+    try {
+      const res = await api.delete(`/api/admin/courses/${id}`)
+      console.log('✅ Delete response:', res.data)
+      setCourses(courses.filter(c => c._id !== id))
+    } catch (err) {
+      console.error('❌ Delete failed:', err.response || err)
+      const msg = err.response?.data?.message || err.message
+      alert('Delete failed: ' + msg)
+    }
+  }
+
+  async function deleteLecture(lectureId) {
+    if (!editing?._id) return
+    if (!window.confirm('Delete this lecture?')) return
+    
+    setEditSaving(true)
+    try {
+      const res = await api.delete(`/api/admin/courses/${editing._id}/curriculum/${lectureId}`)
+      setEditing(normalizeCourse(res.data.course))
+      await fetchCourses()
+    } catch (err) {
+      setEditError('Delete failed: ' + (err.response?.data?.message || err.message))
     } finally {
       setEditSaving(false)
     }
@@ -406,9 +452,9 @@ export default function CourseManagement() {
                   {filteredCourses.map((c) => (
                     <div key={c._id} className="group flex flex-col md:flex-row items-start md:items-center justify-between py-8 border-b border-[#cfc4c5] hover:bg-white transition-colors px-4 -mx-4">
                       <div className="flex items-center gap-6 mb-4 md:mb-0">
-                        <div className="w-24 h-16 bg-[#eeeeee] border border-[#cfc4c5] overflow-hidden">
+                        <div className="w-24 h-16 bg-[#eeeeee] border border-[#cfc4c5] overflow-hidden flex-shrink-0">
                           {c.thumbnail ? (
-                            <img alt={c.title} className="w-full h-full object-cover grayscale" src={c.thumbnail} />
+                            <img alt={c.title} className="w-full h-full object-cover grayscale" src={typeof c.thumbnail === 'object' ? c.thumbnail?.secure_url : c.thumbnail} />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-[#4c4546] uppercase tracking-widest">
                               No Image
@@ -438,8 +484,8 @@ export default function CourseManagement() {
                           <button onClick={() => openEdit(c)} className="p-2 border border-black hover:bg-[#ceef83] transition-colors" title="Edit course">
                             <Icon name="edit" className="text-[18px]" />
                           </button>
-                          <button onClick={() => { setTab('active'); openEdit(c); }} className="p-2 border border-black hover:bg-[#ceef83] transition-colors" title="Add content">
-                            <Icon name="add_circle" className="text-[18px]" />
+                          <button onClick={() => deleteCourse(c._id)} className="p-2 border border-[#ba1a1a] text-[#ba1a1a] hover:bg-[#ffdad6] transition-colors" title="Delete course">
+                            <Icon name="delete" className="text-[18px]" />
                           </button>
                         </div>
                       </div>
@@ -517,7 +563,7 @@ export default function CourseManagement() {
                   <div>
                     <label className="block text-[12px] font-bold uppercase tracking-widest text-[#4c4546] mb-2">Thumbnail URL</label>
                     <input
-                      value={editing.thumbnail || ''}
+                      value={(typeof editing.thumbnail === 'object' ? editing.thumbnail?.secure_url : editing.thumbnail) || ''}
                       onChange={(e) => setEditing((c) => ({ ...c, thumbnail: e.target.value }))}
                       className="w-full border-0 border-b border-black bg-transparent py-3 px-0 text-[14px] focus:ring-0 focus:border-[#b2d26a]"
                       placeholder="/uploads/..."
@@ -568,19 +614,12 @@ export default function CourseManagement() {
                                 <Icon name={l.type === 'document' ? 'article' : 'play_circle'} className="text-[18px] text-[#4c4546]" />
                                 <div className="text-[14px] font-semibold truncate">{l.title}</div>
                               </div>
-                              {(l.url || (l.materials?.[0]?.url)) && (
-                                <a
-                                  href={l.url || l.materials?.[0]?.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-[12px] text-[#4c4546] underline truncate block pl-6"
-                                >
-                                  {l.url || l.materials?.[0]?.url}
-                                </a>
-                              )}
                             </div>
                             <div className="flex items-center gap-3 flex-shrink-0">
                               <span className="text-[12px] text-[#4c4546] font-bold uppercase">{l.duration || '—'}</span>
+                              <button onClick={() => deleteLecture(l._id)} className="text-[#ba1a1a] hover:bg-[#ffdad6] p-1">
+                                <Icon name="delete" className="text-[18px]" />
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -682,4 +721,3 @@ export default function CourseManagement() {
     </AdminShell>
   )
 }
-

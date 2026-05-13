@@ -1,11 +1,22 @@
 import express from 'express';
+import multer from 'multer';
+import { 
+  getCourses, 
+  getCourseById,
+  createCourse, 
+  updateCourse, 
+  uploadAssets, 
+  addLecture 
+} from '../controllers/courseController.js';
+import { requireAdmin } from '../middleware/auth.js';
 import Course from '../models/Course.js';
-import { getCourses } from '../controllers/courseController.js';
 
 const router = express.Router();
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
 /**
- * @desc    Get all courses (supports Redis caching in controller)
+ * @desc    Get all courses
  * @route   GET /api/courses
  */
 router.get('/', getCourses);
@@ -14,14 +25,30 @@ router.get('/', getCourses);
  * @desc    GET single course by ID
  * @route   GET /api/courses/:id
  */
-router.get('/:id', async (req, res) => {
-  try {
-    const course = await Course.findById(req.params.id);
-    if (!course) return res.status(404).json({ message: 'Course not found' });
-    res.json(course);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+router.get('/:id', getCourseById);
+
+/**
+ * @desc    Create course (Admin)
+ * @route   POST /api/courses
+ */
+router.post('/', requireAdmin, createCourse);
+
+/**
+ * @desc    Update course (Admin)
+ * @route   PUT /api/courses/:id
+ */
+router.put('/:id', requireAdmin, updateCourse);
+
+/**
+ * @desc    Upload course assets individually (Admin)
+ * @route   POST /api/courses/:id/assets
+ */
+router.post('/:id/assets', requireAdmin, upload.array('files', 10), uploadAssets);
+
+/**
+ * @desc    Add lecture via URL (Admin)
+ * @route   POST /api/courses/:id/curriculum/lecture
+ */
+router.post('/:id/curriculum/lecture', requireAdmin, addLecture);
 
 export default router;
