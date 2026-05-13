@@ -9,8 +9,11 @@ function Icon({ name, className = '' }) {
 }
 
 function normalizeCourse(c) {
+  const id = c?._id || c?.id;
   return {
     ...c,
+    _id: id,
+    id: id,
     thumbnail: typeof c?.thumbnail === 'object' ? c.thumbnail?.secure_url : c.thumbnail,
     curriculum: Array.isArray(c?.curriculum) ? c.curriculum : [],
     updatedAt: c?.updatedAt ? new Date(c.updatedAt) : null,
@@ -117,16 +120,25 @@ export default function CourseManagement() {
         curriculum: [],
       }
       const res = await api.post('/api/courses', body)
+      console.log('📦 Create course raw response:', res.data)
       const created = normalizeCourse(res.data)
+      console.log('🛠️ Normalized created course:', created)
+
+      if (!created._id) {
+        console.error('❌ Failed to get ID from created course. Response:', res.data)
+        throw new Error('Course creation failed: Server did not return a valid ID.')
+      }
 
       // thumbnail
       if (createFiles.thumbnail) {
+        console.log('🖼️ Uploading thumbnail for course:', created._id)
         const fd = new FormData()
         fd.append('kind', 'thumbnail')
         fd.append('files', createFiles.thumbnail)
         const up = await api.post(`/api/courses/${created._id}/assets`, fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         })
+        console.log('✅ Thumbnail upload response:', up.data)
         created.thumbnail = up.data?.course?.thumbnail?.secure_url || up.data?.course?.thumbnail || created.thumbnail
       }
 

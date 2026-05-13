@@ -36,14 +36,25 @@ export const uploadCourse = async (req, res, next) => {
       instructorBio: admin?.bio || '',
       thumbnail: { secure_url: thumbnailResult.secure_url, public_id: thumbnailResult.public_id },
       video: { secure_url: videoResult.secure_url, public_id: videoResult.public_id },
-      pdf: { secure_url: pdfResult.secure_url, public_id: pdfResult.public_id }
+      pdf: { secure_url: pdfResult.secure_url, public_id: pdfResult.public_id },
+      curriculum: [{
+        sectionTitle: 'Main Course Content',
+        lectures: [
+          { title: 'Main Lesson Video', duration: 'On Demand', type: 'video', url: videoResult.secure_url, public_id: videoResult.public_id, preview: true },
+          { title: 'Course Materials', type: 'document', url: pdfResult.secure_url, public_id: pdfResult.public_id, preview: false }
+        ]
+      }],
+      totalLectures: 2,
     });
 
     await newCourse.save();
     try { await redisClient.del('courses:all'); } catch (err) {}
 
     res.status(201).json({ success: true, course: newCourse });
-  } catch (error) { next(error); }
+  } catch (error) { 
+    console.error("Upload Error:", error);
+    next(error); 
+  }
 };
 
 /**
@@ -54,9 +65,14 @@ export const getCourses = async (req, res, next) => {
   try {
     const cacheKey = 'courses:all';
     let cachedCourses = null;
-    try { cachedCourses = await redisClient.get(cacheKey); } catch (err) {}
+    try { 
+      cachedCourses = await redisClient.get(cacheKey); 
+    } catch (err) {
+      console.error('⚠️ Redis Get Error:', err.message);
+    }
 
     if (cachedCourses) {
+      console.log('⚡ Redis Cache Hit: courses:all');
       const data = JSON.parse(cachedCourses);
       return res.status(200).json({
         success: true,
@@ -66,6 +82,7 @@ export const getCourses = async (req, res, next) => {
       });
     }
 
+    console.log('🐢 Redis Cache Miss: Fetching from MongoDB');
     const courses = await Course.find().populate('adminId', 'name avatar bio').lean();
     
     // Fallback instructor data if missing
@@ -76,7 +93,12 @@ export const getCourses = async (req, res, next) => {
       instructorBio: c.adminId?.bio || c.instructorBio || ''
     }));
 
-    try { await redisClient.set(cacheKey, JSON.stringify(formatted), { EX: 900 }); } catch (err) {}
+    try { 
+      await redisClient.set(cacheKey, JSON.stringify(formatted), { EX: 900 }); 
+      console.log('💾 Redis Cache Updated: courses:all (TTL: 15m)');
+    } catch (err) {
+      console.error('⚠️ Redis Set Error:', err.message);
+    }
     res.status(200).json({ success: true, count: formatted.length, courses: formatted, source: 'database' });
   } catch (error) { next(error); }
 };
@@ -145,8 +167,20 @@ export const updateCourse = async (req, res, next) => {
 export const uploadAssets = async (req, res, next) => {
   try {
     const { kind, sectionTitle, lectureTitle, lectureType, lectureDuration } = req.body;
-    const course = await Course.findById(req.params.id);
-    if (!course) return res.status(404).json({ message: 'Course not found' });
+    const { id } = req.params;
+
+    if (!id || id === 'undefined') {
+      return res.status(400).json({ message: 'Course ID is missing or "undefined" in request URL' });
+    }
+
+    let course;
+    try {
+      course = await Course.findById(id);
+    } catch (err) {
+      return res.status(400).json({ message: `Malformed Course ID format: ${id}` });
+    }
+
+    if (!course) return res.status(404).json({ message: `Course not found in database for ID: ${id}` });
 
     if (!req.files || !req.files[0]) return res.status(400).json({ message: 'No file uploaded' });
 

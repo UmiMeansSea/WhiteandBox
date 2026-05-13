@@ -140,8 +140,11 @@ export default function CourseDetail() {
 
   function getFirstVideoLocation() {
     const sections = course?.curriculum || []
+    if (sections.length === 0) return { si: 0, li: 0 }
+    
     for (let si = 0; si < sections.length; si += 1) {
       const lectures = sections[si]?.lectures || []
+      if (lectures.length === 0) continue
       for (let li = 0; li < lectures.length; li += 1) {
         if (lectures[li]?.type === 'video') return { si, li }
       }

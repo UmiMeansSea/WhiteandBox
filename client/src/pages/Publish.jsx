@@ -52,6 +52,7 @@ export default function Publish() {
       setTimeout(() => navigate('/dashboard'), 2000)
     } catch (error) {
       console.error('Upload failed:', error)
+      console.log('Error details:', error.response?.data)
       alert(error.response?.data?.message || 'Upload failed')
     } finally {
       setSubmitting(false)
@@ -176,6 +177,12 @@ export default function Publish() {
                 <div className="col-span-full">
                   <label className="block text-[12px] font-bold uppercase tracking-tight text-[#4c4546] mb-1">Subtitle</label>
                   <textarea name="subtitle" value={form.subtitle} onChange={handleChange} rows={2}
+                    className="w-full text-[16px] border-b border-[#cfc4c5] focus:border-black focus:outline-none bg-transparent resize-none py-1" />
+                </div>
+                <div className="col-span-full">
+                  <label className="block text-[12px] font-bold uppercase tracking-tight text-[#4c4546] mb-1">Description</label>
+                  <textarea name="description" value={form.description} onChange={handleChange} rows={5}
+                    placeholder="Enter full course description..."
                     className="w-full text-[16px] border-b border-[#cfc4c5] focus:border-black focus:outline-none bg-transparent resize-none py-1" />
                 </div>
               </div>

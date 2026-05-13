@@ -28,9 +28,21 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/edupro';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
 
-// Middleware
+// 1. Basic Middleware
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  process.env.CLIENT_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: CLIENT_URL === '*' ? true : CLIENT_URL,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || process.env.CLIENT_URL === '*') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());
@@ -38,13 +50,13 @@ app.use(cookieParser());
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 app.use('/uploads', express.static(UPLOAD_DIR));
 
-// Debug Middleware
+// 2. Request Logger (Diagnostic)
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  console.log(`📡 [${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
 
-// Session Setup
+// 3. Session Setup
 app.use(session({
   secret: process.env.SESSION_SECRET || 'secret123',
   resave: false,
@@ -60,7 +72,7 @@ app.use(session({
   }
 }));
 
-// Routes
+// 4. Routes
 app.use('/api/courses', courseRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
@@ -76,21 +88,25 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'EduPro API is running' });
 });
 
-// ── Serve built React client (used when sharing via ngrok) ────────────────────
+// 5. Serve built React client (if exists)
 const clientBuild = path.join(__dirname, '../client/dist');
 if (fs.existsSync(clientBuild)) {
   app.use(express.static(clientBuild));
-  // Catch-all: let React Router handle client-side navigation (Express 5 syntax)
   app.get('/{*path}', (req, res) => {
     res.sendFile(path.join(clientBuild, 'index.html'));
   });
   console.log('📦 Serving built React client from /client/dist');
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
-// Global Error Handler
+// 6. Catch-all 404 for API
+app.use((req, res) => {
+  console.log(`❌ 404 Not Found: ${req.method} ${req.url}`);
+  res.status(404).json({ message: `Route ${req.method} ${req.url} not found` });
+});
+
+// 7. Global Error Handler
 app.use((err, req, res, next) => {
-  console.error('❌ Error:', err.message);
+  console.error('❌ Server Error:', err.stack);
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Server Error'
