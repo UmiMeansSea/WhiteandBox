@@ -11,6 +11,10 @@ import userRoutes from './routes/users.js';
 import authRoutes from './routes/auth.js';
 import sessionRoutes from './routes/sessions.js';
 import learningRoutes from './routes/learning.js';
+import adminRoutes from './routes/admin.js';
+import connectDB from './config/db.js';
+import session from 'express-session';
+import MongoStore from 'connect-mongo';
 
 dotenv.config();
 
@@ -32,12 +36,29 @@ app.use(cookieParser());
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 app.use('/uploads', express.static(UPLOAD_DIR));
 
+// Session Setup
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'secret123',
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: MONGO_URI,
+    collectionName: 'sessions'
+  }),
+  cookie: {
+    maxAge: 1000 * 60 * 60 * 24, // 1 day
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production'
+  }
+}));
+
 // Routes
 app.use('/api/courses', courseRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/learning', learningRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -56,20 +77,20 @@ if (fs.existsSync(clientBuild)) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Connect to MongoDB and start server
-mongoose.connect(MONGO_URI)
-  .then(() => {
-    console.log('✅ Connected to MongoDB');
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-    });
-  })
-  .catch(err => {
-    console.error('❌ MongoDB connection error:', err.message);
-    console.log('⚠️  Starting server without DB (demo mode)...');
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT} (no DB)`);
-    });
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('❌ Error:', err.message);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Server Error'
   });
+});
+
+// Connect to MongoDB and start server
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+});
 
 export default app;
